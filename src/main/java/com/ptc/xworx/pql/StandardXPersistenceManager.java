@@ -15,7 +15,7 @@ import java.util.Map.Entry;
 
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.ParseTreeWalker;
-import org.apache.commons.beanutils.BeanUtils;
+import org.apache.commons.beanutils.PropertyUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -165,7 +165,7 @@ public class StandardXPersistenceManager extends StandardManager implements XPer
 					if (arguments.containsKey(name)) {
 						value = arguments.get(name);
 					} else if (name.indexOf(".") > -1) {
-						value = BeanUtils.getProperty(arguments, name);
+						value = PropertyUtils.getProperty(arguments, name);
 					} else {
 						throw new WTException("missing argument:" + name);
 					}
@@ -226,7 +226,7 @@ public class StandardXPersistenceManager extends StandardManager implements XPer
 					if (arguments.containsKey(name)) {
 						value = arguments.get(name);
 					} else if (name.indexOf(".") > -1) {
-						value = BeanUtils.getProperty(arguments, name);
+						value = PropertyUtils.getProperty(arguments, name);
 					} else {
 						throw new WTException("missing argument:" + name);
 					}

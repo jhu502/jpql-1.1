@@ -3,7 +3,7 @@ package com.ptc.xworx.pql;
 import java.lang.reflect.Field;
 import java.util.Map;
 
-import org.apache.commons.beanutils.BeanUtils;
+import org.apache.commons.beanutils.PropertyUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import com.ptc.xworx.util.XException;
@@ -57,7 +57,7 @@ public class PQLSearchCondition extends SearchCondition {
 				value = arguments.get(name);
 			} else if (name.indexOf(".") > -1) {
 				try {
-					value = BeanUtils.getProperty(arguments, name);
+					value = PropertyUtils.getProperty(arguments, name);
 				} catch (Exception e) {
 					throw new XException(e);
 				}
