@@ -40,6 +40,12 @@ public class StandardXPersistenceManager extends StandardManager implements XPer
 		return services;
 	}
 
+	/**
+	 * 缓存QuerySpec，下次执行同样的pql时，直接从缓存中的QuerySpec复制出一个新的QuerySpec进行数据库查询；
+	 * 问题：Windchill中新复制的QuerySpec，在进行高并发查询总出现各种各样的异常信息；
+	 * 
+	 * @author hujin
+	 */
 	class QuerySpecCacheLRU extends LinkedHashMap<String, CacheItemQuerySpec> {
 		private static final long serialVersionUID = 1L;
 		private int wateLine;
@@ -59,6 +65,12 @@ public class StandardXPersistenceManager extends StandardManager implements XPer
 		}
 	}
 
+
+	/**
+	 * 缓存ParseTree，下次执行同样的pql时，直接从缓存中获取pql对应的ParseTree，然后使用ParseTreeWalker去walker，生成
+	 * 出一个新的QuerySpec去执行查询，减少pql的分析过程，以提高性能；
+	 * @author hujin
+	 */
 	class ParseTreeCacheLRU extends LinkedHashMap<String, CacheItemParseTree> {
 		private static final long serialVersionUID = 1L;
 		private int wateLine;
@@ -134,12 +146,14 @@ public class StandardXPersistenceManager extends StandardManager implements XPer
 			if (cacheItem != null) {
 				treeWalker.walk(listener, cacheItem.getParseTree());
 				StatementSpec querySpec = listener.getStatementSpec();
+				bindings.putAll(listener.getBindings());
 				return querySpec;
 			} else {
 				long l0 = System.currentTimeMillis();
 				ParseTree parseTree = XPersistenceHelper.parseStatement(statement, false);
 				cacheItem = CacheItemParseTree.newItem(statement, parseTree);
 				PT_CACHE_LRU.put(statement, cacheItem);
+				
 				treeWalker.walk(listener, cacheItem.getParseTree());
 				StatementSpec querySpec = listener.getStatementSpec();
 				bindings.putAll(listener.getBindings());
