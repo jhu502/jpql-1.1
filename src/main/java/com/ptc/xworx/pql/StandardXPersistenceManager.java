@@ -1,32 +1,13 @@
 package com.ptc.xworx.pql;
 
-import java.io.IOException;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
-import java.sql.SQLException;
-import java.sql.Timestamp;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-
+import com.ptc.xworx.util.XException;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.ParseTreeWalker;
 import org.apache.commons.beanutils.PropertyUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.ptc.xworx.util.XException;
-
-import wt.fc.ObjectSetVector;
-import wt.fc.ObjectVectorIfc;
-import wt.fc.PersistenceHelper;
-import wt.fc.PersistenceServerHelper;
-import wt.fc.QueryResult;
+import wt.fc.*;
 import wt.method.MethodContext;
 import wt.pds.StatementSpec;
 import wt.pom.PersistenceException;
@@ -38,10 +19,17 @@ import wt.services.StandardManager;
 import wt.util.WTException;
 import wt.util.WTProperties;
 
+import java.io.IOException;
+import java.sql.*;
+import java.util.Date;
+import java.util.*;
+import java.util.Map.Entry;
+
 public class StandardXPersistenceManager extends StandardManager implements XPersistenceManager {
 	static final long serialVersionUID = 1;
 	private static final Logger LOGGER = LoggerFactory.getLogger(StandardXPersistenceManager.class);
-	private XPQLCacheLRU PQL_CACHE_LRU = new XPQLCacheLRU(500);
+	private QuerySpecCacheLRU QS_CACHE_LRU = new QuerySpecCacheLRU(500);
+	private ParseTreeCacheLRU PT_CACHE_LRU = new ParseTreeCacheLRU(500);
 
 	public StandardXPersistenceManager() {
 	}
@@ -52,17 +40,36 @@ public class StandardXPersistenceManager extends StandardManager implements XPer
 		return services;
 	}
 
-	class XPQLCacheLRU extends LinkedHashMap<String, PQLCacheItem> {
+	class QuerySpecCacheLRU extends LinkedHashMap<String, CacheItemQuerySpec> {
 		private static final long serialVersionUID = 1L;
 		private int wateLine;
 
-		public XPQLCacheLRU(int wateLine) {
+		public QuerySpecCacheLRU(int wateLine) {
 			super((int) Math.ceil(wateLine / 0.75) + 1, 0.75f, true); // accessOrder为true，维护访问顺序
 			this.wateLine = wateLine;
 		}
 
 		@Override
-		protected boolean removeEldestEntry(Map.Entry<String, PQLCacheItem> eldest) {
+		protected boolean removeEldestEntry(Entry<String, CacheItemQuerySpec> eldest) {
+			return size() > wateLine;
+		}
+
+		public void setWateLine(int wateLine) {
+			this.wateLine = wateLine;
+		}
+	}
+
+	class ParseTreeCacheLRU extends LinkedHashMap<String, CacheItemParseTree> {
+		private static final long serialVersionUID = 1L;
+		private int wateLine;
+
+		public ParseTreeCacheLRU(int wateLine) {
+			super((int) Math.ceil(wateLine / 0.75) + 1, 0.75f, true);
+			this.wateLine = wateLine;
+		}
+
+		@Override
+		protected boolean removeEldestEntry(Entry<String, CacheItemParseTree> eldest) {
 			return size() > wateLine;
 		}
 
@@ -76,7 +83,7 @@ public class StandardXPersistenceManager extends StandardManager implements XPer
 			WTProperties properties = WTProperties.getLocalProperties();
 			String cacheCount = properties.getProperty("com.ptc.xworx.pql.cache.count");
 			if (StringUtils.isNoneBlank(cacheCount)) {
-				PQL_CACHE_LRU.setWateLine(Integer.parseInt(cacheCount));
+				PT_CACHE_LRU.setWateLine(Integer.parseInt(cacheCount));
 			}
 		} catch (NumberFormatException e) {
 			throw new ManagerException(e.getLocalizedMessage());
@@ -85,9 +92,10 @@ public class StandardXPersistenceManager extends StandardManager implements XPer
 		}
 	}
 
-	private PQLCacheItem generateQuerySpec(String statement, Map<String, Object> arguments, boolean cached) throws WTException {
+	@SuppressWarnings("unused")
+	private CacheItemQuerySpec generateQuerySpec(String statement, Map<String, Object> arguments, boolean cached) throws WTException {
 		if (cached) {
-			PQLCacheItem cacheItem = PQL_CACHE_LRU.get(statement);
+			CacheItemQuerySpec cacheItem = QS_CACHE_LRU.get(statement);
 			if (cacheItem != null) {
 				return cacheItem;
 			} else {
@@ -97,8 +105,8 @@ public class StandardXPersistenceManager extends StandardManager implements XPer
 				ParseTree parseTree = XPersistenceHelper.parseStatement(statement, false);
 				treeWalker.walk(listener, parseTree);
 				StatementSpec querySpec = listener.getStatementSpec();
-				cacheItem = PQLCacheItem.newItem(statement, querySpec, listener.getBindings());
-				PQL_CACHE_LRU.put(statement, cacheItem);
+				cacheItem = CacheItemQuerySpec.newItem(statement, querySpec, listener.getBindings());
+				QS_CACHE_LRU.put(statement, cacheItem);
 				long l1 = System.currentTimeMillis();
 				LOGGER.trace("Script walker spents time: " + (l1 - l0) + "ms");
 				return cacheItem;
@@ -110,10 +118,34 @@ public class StandardXPersistenceManager extends StandardManager implements XPer
 			ParseTree parseTree = XPersistenceHelper.parseStatement(statement, false);
 			treeWalker.walk(listener, parseTree);
 			StatementSpec querySpec = listener.getStatementSpec();
-			PQLCacheItem cacheItem = PQLCacheItem.newItem(statement, querySpec, listener.getBindings());
+			CacheItemQuerySpec cacheItem = CacheItemQuerySpec.newItem(statement, querySpec, listener.getBindings());
 			long l1 = System.currentTimeMillis();
 			LOGGER.trace("Script walker spents time: " + (l1 - l0) + "ms");
 			return cacheItem;
+		}
+	}
+
+	private StatementSpec generateQuerySpec(String statement, Map<String, Object> arguments, Map<Integer, String> bindings) throws WTException {
+		synchronized (statement) {
+			ParseTreeWalker treeWalker = new ParseTreeWalker();
+			PQLanguageQueryListener listener = new PQLanguageQueryListener(arguments);
+
+			CacheItemParseTree cacheItem = PT_CACHE_LRU.get(statement);
+			if (cacheItem != null) {
+				treeWalker.walk(listener, cacheItem.getParseTree());
+				StatementSpec querySpec = listener.getStatementSpec();
+				return querySpec;
+			} else {
+				long l0 = System.currentTimeMillis();
+				ParseTree parseTree = XPersistenceHelper.parseStatement(statement, false);
+				cacheItem = CacheItemParseTree.newItem(statement, parseTree);
+				PT_CACHE_LRU.put(statement, cacheItem);
+				treeWalker.walk(listener, cacheItem.getParseTree());
+				StatementSpec querySpec = listener.getStatementSpec();
+				bindings.putAll(listener.getBindings());
+				LOGGER.trace("Script walker spents time: " + (System.currentTimeMillis() - l0) + "ms");
+				return querySpec;
+			}
 		}
 	}
 
@@ -140,8 +172,12 @@ public class StandardXPersistenceManager extends StandardManager implements XPer
 	@Override
 	public QueryResult query(String pql) {
 		try {
-			PQLCacheItem cacheItem = this.generateQuerySpec(pql, null, true);
-			StatementSpec querySpec = cacheItem.cloneSpec();
+			/**
+			 * CacheItemQuerySpec cacheItem = this.generateQuerySpec(pql, null, true);
+			 * StatementSpec querySpec = cacheItem.cloneSpec();
+			 */
+			Map<Integer, String> bindings = new LinkedHashMap<>();
+			StatementSpec querySpec = this.generateQuerySpec(pql, null, bindings);
 			LOGGER.trace("StatementSpec script:" + querySpec.toString());
 			return PersistenceServerHelper.manager.query(querySpec);
 		} catch (Exception e) {
@@ -154,9 +190,13 @@ public class StandardXPersistenceManager extends StandardManager implements XPer
 	public QueryResult query(String pql, Map<String, Object> arguments) {
 		String statement = this.processPlaceHolder(pql, arguments);
 		try {
-			PQLCacheItem cacheItem = this.generateQuerySpec(statement, arguments, true);
-			Map<Integer, String> bindings = cacheItem.getBindings();
-			StatementSpec querySpec = cacheItem.cloneSpec(arguments);
+			/**
+			 * CacheItemQuerySpec cacheItem = this.generateQuerySpec(statement, arguments, true);
+			 * Map<Integer, String> bindings = cacheItem.getBindings();
+			 * StatementSpec querySpec = cacheItem.cloneSpec(arguments);
+			 */
+			Map<Integer, String> bindings = new LinkedHashMap<>();
+			StatementSpec querySpec = this.generateQuerySpec(statement, arguments, bindings);
 			if (arguments != null) {
 				for (Entry<Integer, String> entry : bindings.entrySet()) {
 					int i = entry.getKey();
@@ -194,8 +234,12 @@ public class StandardXPersistenceManager extends StandardManager implements XPer
 	@Override
 	public QueryResult find(String pql) {
 		try {
-			PQLCacheItem cacheItem = this.generateQuerySpec(pql, null, true);
-			StatementSpec querySpec = cacheItem.cloneSpec();
+			/**
+			 * CacheItemQuerySpec cacheItem = this.generateQuerySpec(pql, null, true);
+			 * StatementSpec querySpec = cacheItem.cloneSpec();
+			 */
+			Map<Integer, String> bindings = new LinkedHashMap<>();
+			StatementSpec querySpec = this.generateQuerySpec(pql, null, bindings);
 			LOGGER.trace("StatementSpec script:" + querySpec.toString());
 			return PersistenceHelper.manager.find(querySpec);
 		} catch (Exception e) {
@@ -215,9 +259,13 @@ public class StandardXPersistenceManager extends StandardManager implements XPer
 		LOGGER.trace("PQL script:" + statement);
 		LOGGER.trace("PQL arguments:" + arguments);
 		try {
-			PQLCacheItem cacheItem = this.generateQuerySpec(statement, arguments, cached);
-			Map<Integer, String> bindings = cacheItem.getBindings();
-			StatementSpec querySpec = cacheItem.cloneSpec(arguments);
+			/**
+			 * CacheItemQuerySpec cacheItem = this.generateQuerySpec(statement, arguments, cached);
+			 * Map<Integer, String> bindings = cacheItem.getBindings();
+			 * StatementSpec querySpec = cacheItem.cloneSpec(arguments);
+			 */
+			Map<Integer, String> bindings = new LinkedHashMap<>();
+			StatementSpec querySpec = this.generateQuerySpec(statement, arguments, bindings);
 			if (arguments != null) {
 				for (Entry<Integer, String> entry : bindings.entrySet()) {
 					int i = entry.getKey();

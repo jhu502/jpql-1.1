@@ -19,8 +19,8 @@ public class PQLProxyFactory {
 		return Proxy.newProxyInstance(interType.getClassLoader(), new Class[] { interType }, (new DynamicInvocation(interType)));
 	}
 
-	public static Object getInterfaceObject(Class<?> intype, Class<?> outtype) {
-		return Proxy.newProxyInstance(outtype.getClassLoader(), new Class[] { outtype }, (new DynamicInvocation(intype)));
+	public static Object getInterfaceObject(Class<?> intype, Class<?> outype) {
+		return Proxy.newProxyInstance(outype.getClassLoader(), new Class[] { outype }, (new DynamicInvocation(intype)));
 	}
 
 	@SuppressWarnings("unchecked")

@@ -1,8 +1,6 @@
 package com.ptc.xworx.pql;
 
 import com.ptc.xworx.util.XException;
-
-import wt.query.CloneableStatementSpec;
 import wt.query.QueryException;
 import wt.query.QuerySpec;
 import wt.util.WTException;
@@ -33,7 +31,7 @@ public class PQLQuerySpec extends QuerySpec {
 		}
 	}
 	
-	public CloneableStatementSpec clone() {
+	public PQLQuerySpec clone() {
 		try {
 			PQLQuerySpec target = new PQLQuerySpec();
 			clone(target, this, true);
