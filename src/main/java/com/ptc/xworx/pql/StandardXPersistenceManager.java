@@ -28,8 +28,8 @@ import java.util.Map.Entry;
 public class StandardXPersistenceManager extends StandardManager implements XPersistenceManager {
 	static final long serialVersionUID = 1;
 	private static final Logger LOGGER = LoggerFactory.getLogger(StandardXPersistenceManager.class);
-	private QuerySpecCacheLRU QS_CACHE_LRU = new QuerySpecCacheLRU(500);
-	private ParseTreeCacheLRU PT_CACHE_LRU = new ParseTreeCacheLRU(500);
+	private LRUCacheQuerySpec QS_CACHE_LRU = new LRUCacheQuerySpec(500);
+	private LRUCacheParseTree PT_CACHE_LRU = new LRUCacheParseTree(500);
 
 	public StandardXPersistenceManager() {
 	}
@@ -38,56 +38,6 @@ public class StandardXPersistenceManager extends StandardManager implements XPer
 		StandardXPersistenceManager services = new StandardXPersistenceManager();
 		services.initialize();
 		return services;
-	}
-
-	/**
-	 * 缓存QuerySpec，下次执行同样的pql时，直接从缓存中的QuerySpec复制出一个新的QuerySpec进行数据库查询；
-	 * 问题：Windchill中新复制的QuerySpec，在进行高并发查询总出现各种各样的异常信息；
-	 * 
-	 * @author hujin
-	 */
-	class QuerySpecCacheLRU extends LinkedHashMap<String, CacheItemQuerySpec> {
-		private static final long serialVersionUID = 1L;
-		private int wateLine;
-
-		public QuerySpecCacheLRU(int wateLine) {
-			super((int) Math.ceil(wateLine / 0.75) + 1, 0.75f, true); // accessOrder为true，维护访问顺序
-			this.wateLine = wateLine;
-		}
-
-		@Override
-		protected boolean removeEldestEntry(Entry<String, CacheItemQuerySpec> eldest) {
-			return size() > wateLine;
-		}
-
-		public void setWateLine(int wateLine) {
-			this.wateLine = wateLine;
-		}
-	}
-
-
-	/**
-	 * 缓存ParseTree，下次执行同样的pql时，直接从缓存中获取pql对应的ParseTree，然后使用ParseTreeWalker去walker，生成
-	 * 出一个新的QuerySpec去执行查询，减少pql的分析过程，以提高性能；
-	 * @author hujin
-	 */
-	class ParseTreeCacheLRU extends LinkedHashMap<String, CacheItemParseTree> {
-		private static final long serialVersionUID = 1L;
-		private int wateLine;
-
-		public ParseTreeCacheLRU(int wateLine) {
-			super((int) Math.ceil(wateLine / 0.75) + 1, 0.75f, true);
-			this.wateLine = wateLine;
-		}
-
-		@Override
-		protected boolean removeEldestEntry(Entry<String, CacheItemParseTree> eldest) {
-			return size() > wateLine;
-		}
-
-		public void setWateLine(int wateLine) {
-			this.wateLine = wateLine;
-		}
 	}
 
 	protected void performStartupProcess() throws ManagerException {
@@ -119,8 +69,7 @@ public class StandardXPersistenceManager extends StandardManager implements XPer
 				StatementSpec querySpec = listener.getStatementSpec();
 				cacheItem = CacheItemQuerySpec.newItem(statement, querySpec, listener.getBindings());
 				QS_CACHE_LRU.put(statement, cacheItem);
-				long l1 = System.currentTimeMillis();
-				LOGGER.trace("Script walker spents time: " + (l1 - l0) + "ms");
+				LOGGER.trace("Script walker spents time: " + (System.currentTimeMillis() - l0) + "ms -------- Hit Rate:" + QS_CACHE_LRU.getHitRate());
 				return cacheItem;
 			}
 		} else {
@@ -128,11 +77,11 @@ public class StandardXPersistenceManager extends StandardManager implements XPer
 			ParseTreeWalker treeWalker = new ParseTreeWalker();
 			PQLanguageQueryListener listener = new PQLanguageQueryListener(arguments);
 			ParseTree parseTree = XPersistenceHelper.parseStatement(statement, false);
+			
 			treeWalker.walk(listener, parseTree);
 			StatementSpec querySpec = listener.getStatementSpec();
 			CacheItemQuerySpec cacheItem = CacheItemQuerySpec.newItem(statement, querySpec, listener.getBindings());
-			long l1 = System.currentTimeMillis();
-			LOGGER.trace("Script walker spents time: " + (l1 - l0) + "ms");
+			LOGGER.trace("Script walker spents time: " + (System.currentTimeMillis() - l0) + "ms -------- Hit Rate:" + QS_CACHE_LRU.getHitRate());
 			return cacheItem;
 		}
 	}
@@ -144,9 +93,11 @@ public class StandardXPersistenceManager extends StandardManager implements XPer
 
 			CacheItemParseTree cacheItem = PT_CACHE_LRU.get(statement);
 			if (cacheItem != null) {
+				long l0 = System.currentTimeMillis();
 				treeWalker.walk(listener, cacheItem.getParseTree());
 				StatementSpec querySpec = listener.getStatementSpec();
 				bindings.putAll(listener.getBindings());
+				LOGGER.trace("Script walker spents time: " + (System.currentTimeMillis() - l0) + "ms -------- Hit Rate:" + PT_CACHE_LRU.getHitRate());
 				return querySpec;
 			} else {
 				long l0 = System.currentTimeMillis();
@@ -157,7 +108,7 @@ public class StandardXPersistenceManager extends StandardManager implements XPer
 				treeWalker.walk(listener, cacheItem.getParseTree());
 				StatementSpec querySpec = listener.getStatementSpec();
 				bindings.putAll(listener.getBindings());
-				LOGGER.trace("Script walker spents time: " + (System.currentTimeMillis() - l0) + "ms");
+				LOGGER.trace("Script walker spents time: " + (System.currentTimeMillis() - l0) + "ms -------- Hit Rate:" + PT_CACHE_LRU.getHitRate());
 				return querySpec;
 			}
 		}

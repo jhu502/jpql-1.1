@@ -37,7 +37,7 @@ public class PQLanguageInsertListener extends QLanguageParserBaseListener {
 		}
 	}
 
-	public void enterInsertStatement(InsertStatementContext ctx) {
+	public void enterInsertStatement(QLanguageParser.InsertStatementContext ctx) {
 		int iCount = 1;
 		for (ParseTree child : ctx.children) {
 			if (child instanceof InsertClauseContext) {

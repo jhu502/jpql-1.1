@@ -173,7 +173,7 @@ public class PQLanguageQueryListener extends QLanguageParserBaseListener {
 	}
 
 	@Override
-	public void enterStartPQLStatement(StartPQLStatementContext ctx) {
+	public void enterStartPQLStatement(QLanguageParser.StartPQLStatementContext ctx) {
 		for (ParseTree child : ctx.children) {
 			if (child instanceof UnionContext) {
 				UnionContext unionContext = (UnionContext) child;
@@ -211,13 +211,13 @@ public class PQLanguageQueryListener extends QLanguageParserBaseListener {
 	}
 
 	@Override
-	public void exitStartPQLStatement(StartPQLStatementContext ctx) {
+	public void exitStartPQLStatement(QLanguageParser.StartPQLStatementContext ctx) {
 		if (!this.getSelectStack().isEmpty())
 			this.getSelectStack().pop();
 	}
 
 	@Override
-	public void enterSelectStatement(SelectStatementContext ctx) {
+	public void enterSelectStatement(QLanguageParser.SelectStatementContext ctx) {
 		ParserRuleContext parent = ctx.getParent();
 		if (parent instanceof StartPQLStatementContext) {
 			if (this.getSelectStack().isEmpty()) {
@@ -267,7 +267,7 @@ public class PQLanguageQueryListener extends QLanguageParserBaseListener {
 	}
 
 	@Override
-	public void exitSelectStatement(SelectStatementContext ctx) {
+	public void exitSelectStatement(QLanguageParser.SelectStatementContext ctx) {
 		try {
 			KEY_THREAD_LOCAL.set("SELECT");
 			SelectContext selectContext = this.getSelectStack().peek();
@@ -405,31 +405,31 @@ public class PQLanguageQueryListener extends QLanguageParserBaseListener {
 	}
 
 	@Override
-	public void enterSelectClause(SelectClauseContext ctx) {
+	public void enterSelectClause(QLanguageParser.SelectClauseContext ctx) {
 		SelectContext selectcontext = this.getSelectStack().peek();
 		selectcontext.selectClauseContext = ctx;
 		for (ParseTree child : ctx.children) {
-			if (child instanceof ObjectItemContext || child instanceof FieldItemContext) {
+			if (child instanceof QLanguageParser.ObjectItemContext || child instanceof QLanguageParser.FieldItemContext) {
 				selectcontext.selectItem.add(child.getText());
 			}
 		}
 	}
 
 	@Override
-	public void enterWhereClause(WhereClauseContext ctx) {
+	public void enterWhereClause(QLanguageParser.WhereClauseContext ctx) {
 		SelectContext selectcontext = this.getSelectStack().peek();
 		WhereClause whereClause = ((PQLQuerySpec) selectcontext.querySpec).getWhereClause();
 		selectcontext.conditionStack.push(whereClause);
 	}
 
 	@Override
-	public void exitWhereClause(WhereClauseContext ctx) {
+	public void exitWhereClause(QLanguageParser.WhereClauseContext ctx) {
 		SelectContext selectcontext = this.getSelectStack().peek();
 		selectcontext.conditionStack.pop();
 	}
 
 	@Override
-	public void enterClassFrom(ClassFromContext ctx) {
+	public void enterClassFrom(QLanguageParser.ClassFromContext ctx) {
 		SelectContext selectContext = this.getSelectStack().peek();
 		try {
 			ClassNameContext classContext = ctx.className();
@@ -461,7 +461,7 @@ public class PQLanguageQueryListener extends QLanguageParserBaseListener {
 	}
 
 	@Override
-	public void enterTableFrom(TableFromContext ctx) {
+	public void enterTableFrom(QLanguageParser.TableFromContext ctx) {
 		SelectContext selectContext = this.getSelectStack().peek();
 		TableNameContext tableContext = ctx.tableName();
 		AliasContext aliasContext = ctx.alias();
@@ -477,7 +477,7 @@ public class PQLanguageQueryListener extends QLanguageParserBaseListener {
 	}
 
 	@Override
-	public void enterQueryFrom(QueryFromContext ctx) {
+	public void enterQueryFrom(QLanguageParser.QueryFromContext ctx) {
 		SelectContext selectContext = this.getSelectStack().peek();
 		AliasContext aliasContext = ctx.alias();
 		String aliasName = aliasContext.getText();
@@ -503,7 +503,7 @@ public class PQLanguageQueryListener extends QLanguageParserBaseListener {
 	}
 
 	@Override
-	public void enterXCondition(XConditionContext ctx) {
+	public void enterXCondition(QLanguageParser.XConditionContext ctx) {
 		SelectContext selectcontext = this.getSelectStack().peek();
 		Object where = selectcontext.conditionStack.peek();
 		if (where instanceof WhereClause) {
@@ -528,7 +528,7 @@ public class PQLanguageQueryListener extends QLanguageParserBaseListener {
 	}
 
 	@Override
-	public void enterXComplex(XComplexContext ctx) {
+	public void enterXComplex(QLanguageParser.XComplexContext ctx) {
 		SelectContext selectcontext = this.getSelectStack().peek();
 		Object where = selectcontext.conditionStack.peek();
 		if (where instanceof WhereClause) {
@@ -553,7 +553,7 @@ public class PQLanguageQueryListener extends QLanguageParserBaseListener {
 	}
 
 	@Override
-	public void enterComplex(ComplexContext ctx) {
+	public void enterComplex(QLanguageParser.ComplexContext ctx) {
 		SelectContext selectcontext = this.getSelectStack().peek();
 		Object where = selectcontext.conditionStack.peek();
 		if (where instanceof WhereClause) {
@@ -562,7 +562,7 @@ public class PQLanguageQueryListener extends QLanguageParserBaseListener {
 		}
 	}
 
-	public void _enterConditionComplex(ComplexContext ctx) {
+	public void _enterConditionComplex(QLanguageParser.ComplexContext ctx) {
 		SelectContext selectcontext = this.getSelectStack().peek();
 		Object where = selectcontext.conditionStack.peek();
 		CompositeWhereExpression compositeWhere = new CompositeWhereExpression();
@@ -581,7 +581,7 @@ public class PQLanguageQueryListener extends QLanguageParserBaseListener {
 	}
 
 	@Override
-	public void exitComplex(ComplexContext ctx) {
+	public void exitComplex(QLanguageParser.ComplexContext ctx) {
 		SelectContext selectcontext = this.getSelectStack().peek();
 		Object where = selectcontext.conditionStack.peek();
 		if (where instanceof WhereClause) {
@@ -590,13 +590,13 @@ public class PQLanguageQueryListener extends QLanguageParserBaseListener {
 		}
 	}
 
-	public void _exitConditionComplex(ComplexContext ctx) {
+	public void _exitConditionComplex(QLanguageParser.ComplexContext ctx) {
 		SelectContext selectcontext = this.getSelectStack().peek();
 		selectcontext.conditionStack.pop();
 	}
 
 	@Override
-	public void enterCondition(ConditionContext ctx) {
+	public void enterCondition(QLanguageParser.ConditionContext ctx) {
 		SelectContext selectContext = this.getSelectStack().peek();
 		Object where = selectContext.conditionStack.peek();
 
@@ -1105,7 +1105,7 @@ public class PQLanguageQueryListener extends QLanguageParserBaseListener {
 	}
 
 	@Override
-	public void enterParameter(ParameterContext ctx) {
+	public void enterParameter(QLanguageParser.ParameterContext ctx) {
 		SelectContext selectContext = this.getSelectStack().peek();
 
 		ParseTree left = ctx.getChild(0);
@@ -1141,7 +1141,7 @@ public class PQLanguageQueryListener extends QLanguageParserBaseListener {
 	}
 
 	@Override
-	public void enterXParameter(XParameterContext ctx) {
+	public void enterXParameter(QLanguageParser.XParameterContext ctx) {
 		SelectContext selectContext = this.getSelectStack().peek();
 
 		ParseTree left = ctx.getChild(0);
@@ -1177,7 +1177,7 @@ public class PQLanguageQueryListener extends QLanguageParserBaseListener {
 	}
 
 	@Override
-	public void enterOrderClause(OrderClauseContext ctx) {
+	public void enterOrderClause(QLanguageParser.OrderClauseContext ctx) {
 		ParserRuleContext parent = ctx.getParent();
 		if (!(parent instanceof SelectStatementContext))
 			return;
@@ -1207,7 +1207,7 @@ public class PQLanguageQueryListener extends QLanguageParserBaseListener {
 	}
 
 	@Override
-	public void enterGroupClause(GroupClauseContext ctx) {
+	public void enterGroupClause(QLanguageParser.GroupClauseContext ctx) {
 		SelectContext selectContext = this.getSelectStack().peek();
 
 		for (FieldContext field : ctx.field()) {
@@ -1225,7 +1225,7 @@ public class PQLanguageQueryListener extends QLanguageParserBaseListener {
 	}
 
 	@Override
-	public void enterHavingClause(HavingClauseContext ctx) {
+	public void enterHavingClause(QLanguageParser.HavingClauseContext ctx) {
 		SelectContext selectContext = this.getSelectStack().peek();
 
 		ParseTree treeL = ctx.getChild(1);
