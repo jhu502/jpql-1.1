@@ -3,7 +3,7 @@ package com.ptc.xworx.pql;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-public class AbstractLRUCache<T> extends LinkedHashMap<String, T> {
+public class AbstractLRUCache<T extends AbstractCacheItem> extends LinkedHashMap<String, T> {
 	private static final long serialVersionUID = 1L;
 	private int wateLine;
 	private long hit = 0;
@@ -20,6 +20,7 @@ public class AbstractLRUCache<T> extends LinkedHashMap<String, T> {
 		if (t == null) {
 			uhit = uhit + 1;
 		} else {
+			t.hitted();
 			hit = hit + 1;
 		}
 		return t;
